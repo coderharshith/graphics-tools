@@ -11,6 +11,16 @@ from pathlib import Path
 
 from PIL import Image, ImageTk
 
+
+def resource_path(relative_path):
+    """Get absolute path to resource for PyInstaller."""
+    try:
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_path, relative_path)
+
+
 # Add visionary_suite to path so we can import tools/utils
 _suite_dir = resource_path("visionary_suite")
 if not os.path.isdir(_suite_dir):
@@ -24,15 +34,6 @@ from tools.bg_adder import BackgroundAdder
 from tools.color_grader import ColorGrader
 from tools.quote_generator import QuoteGenerator
 from utils.file_utils import get_image_files, get_video_files
-
-
-def resource_path(relative_path):
-    """Get absolute path to resource for PyInstaller."""
-    try:
-        base_path = sys._MEIPASS
-    except AttributeError:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, relative_path)
 
 
 class VisionaryApp:
