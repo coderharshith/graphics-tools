@@ -1,4 +1,4 @@
-# Visionary Graphics Suite
+# Guseto
 
 Professional graphics tools suite with both a **Web UI** (Streamlit) and a **Desktop App** (tkinter/PyInstaller).
 
@@ -12,20 +12,20 @@ Professional graphics tools suite with both a **Web UI** (Streamlit) and a **Des
 | **Color Grader** | Adjust brightness, contrast, saturation + preset filters (B&W, Sepia, Warm, Cool, Cyberpunk) |
 | **Quote Generator** | Overlay text quotes on images with custom fonts, colors, and positioning |
 
-All tools support **single file upload**, **multi-file upload**, and **bulk folder processing**.
+All tools support **single file upload**, **multi-file upload**, **ZIP upload**, and **folder selection**.
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/coderharshith/graphics-tools.git
-cd graphics-tools
+git clone https://github.com/coderharshith/guseto.git
+cd guseto
 pip install -r requirements.txt
 ```
 
 ### Run Web UI
 
 ```bash
-streamlit run visionary_suite/app.py
+python -m streamlit run visionary_suite/app.py
 ```
 
 Opens at `http://localhost:8501` with drag-and-drop multi-file support.
@@ -43,25 +43,29 @@ pip install pyinstaller
 python build.py
 ```
 
-Output: `dist/VisionarySuite/VisionarySuite.exe`
+Output: `dist/Guseto/Guseto.exe`
 
 ## Project Structure
 
 ```
-graphics-tools/
+guseto/
+├── assets/
+│   ├── logo.png           # App logo
+│   ├── icon.png           # App icon
+│   └── logo_banner.png    # Banner logo
 ├── visionary_suite/
-│   ├── app.py                 # Streamlit Web UI
+│   ├── app.py             # Streamlit Web UI
 │   ├── tools/
-│   │   ├── bg_remover.py      # Background removal
-│   │   ├── bg_adder.py        # Background addition
-│   │   ├── video_converter.py # Video frame extraction
-│   │   ├── color_grader.py    # Color adjustments & filters
-│   │   └── quote_generator.py # Text overlay on images
+│   │   ├── bg_remover.py
+│   │   ├── bg_adder.py
+│   │   ├── video_converter.py
+│   │   ├── color_grader.py
+│   │   └── quote_generator.py
 │   └── utils/
-│       ├── file_utils.py      # File helpers, zip support
-│       └── ui_helper.py       # UI utilities
-├── desktop_entry.py           # Desktop tkinter GUI
-├── build.py                   # PyInstaller build script
+│       ├── file_utils.py
+│       └── ui_helper.py
+├── desktop_entry.py       # Desktop tkinter GUI
+├── build.py               # PyInstaller build script
 ├── requirements.txt
 └── .gitignore
 ```

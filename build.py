@@ -7,7 +7,7 @@ import PyInstaller.__main__
 import os
 import shutil
 
-APP_NAME = "VisionarySuite"
+APP_NAME = "Guseto"
 ENTRY = "desktop_entry.py"
 DIRS_TO_INCLUDE = ["visionary_suite"]
 

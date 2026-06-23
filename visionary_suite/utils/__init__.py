@@ -1,1 +1,1 @@
-# Visionary suite utils package
+# Guseto utils package
