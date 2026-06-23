@@ -2,6 +2,7 @@ import streamlit as st
 from PIL import Image
 import os
 import io
+import zipfile
 import tempfile
 import shutil
 
@@ -27,23 +28,59 @@ st.set_page_config(
 st.markdown("""
 <style>
     .stApp { max-width: 1200px; margin: 0 auto; }
-    .tool-card {
-        padding: 1.2rem; border-radius: 10px; border: 1px solid #ddd;
-        margin-bottom: 0.8rem; background: #fafafa;
-    }
-    .success-box { padding: 0.8rem; background: #d4edda; border-radius: 6px; color: #155724; }
-    .error-box { padding: 0.8rem; background: #f8d7da; border-radius: 6px; color: #721c24; }
     div[data-testid="stSidebar"] { background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%); }
     div[data-testid="stSidebar"] .stRadio label { color: #e0e0e0; }
     div[data-testid="stSidebar"] h1 { color: #ffffff; }
 </style>
 """, unsafe_allow_html=True)
 
+SUPPORTED_IMG = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
+SUPPORTED_VID = (".mp4", ".avi", ".mov", ".mkv", ".webm")
+
 bg_remover = BackgroundRemover()
 video_converter = VideoConverter()
 bg_adder = BackgroundAdder()
 color_grader = ColorGrader()
 quote_gen = QuoteGenerator()
+
+
+def extract_zip_to_temp(uploaded_zip):
+    """Extract uploaded ZIP to a temp directory, return the directory path."""
+    tdir = tempfile.mkdtemp()
+    with zipfile.ZipFile(io.BytesIO(uploaded_zip.read()), "r") as zf:
+        zf.extractall(tdir)
+    return tdir
+
+
+def get_files_from_dir(directory, extensions):
+    """Get all files with matching extensions from a directory."""
+    files = []
+    for root, _, fnames in os.walk(directory):
+        for fn in sorted(fnames):
+            if fn.lower().endswith(extensions):
+                files.append(os.path.join(root, fn))
+    return files
+
+
+def make_zip_from_results(results, suffix="_processed"):
+    """Create a ZIP from list of (filename, bytes_data) tuples."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, data in results:
+            zf.writestr(name, data)
+    buf.seek(0)
+    return buf.getvalue()
+
+
+def show_results(results, suffix=".png", mime="image/png"):
+    """Show download buttons for results and a ZIP download if multiple."""
+    for name, data in results:
+        st.image(data, caption=f"✅ {name}", use_container_width=True)
+        st.download_button(f"📥 Download {name}", data, name, mime, key=f"dl_{name}")
+
+    if len(results) > 1:
+        zip_data = make_zip_from_results(results)
+        st.download_button("📦 Download All as ZIP", zip_data, "results.zip", "application/zip")
 
 
 def main():
@@ -75,202 +112,113 @@ def main():
 
 def show_home():
     st.title("🎨 Visionary Graphics Suite")
-    st.markdown("Professional graphics tools in one place.")
+    st.markdown("Professional graphics tools in one place. Upload files individually or as a ZIP archive.")
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown("""
-        **✂️ Background Remover**
-        - Remove backgrounds from images
-        - Single or batch processing
-        - Outputs transparent PNGs
-        """)
+        st.markdown("**✂️ Background Remover**\n- Remove backgrounds\n- Single, multi, or ZIP\n- Transparent PNGs")
     with col2:
-        st.markdown("""
-        **🎬 Video to Image**
-        - Extract frames from videos
-        - Configurable frame interval
-        - Batch video processing
-        """)
+        st.markdown("**🎬 Video to Image**\n- Extract frames\n- Configurable interval\n- Batch processing")
     with col3:
-        st.markdown("""
-        **🌈 Color Grader**
-        - Adjust brightness, contrast, saturation
-        - Apply preset filters
-        - Live preview
-        """)
+        st.markdown("**🌈 Color Grader**\n- Brightness, contrast, saturation\n- Preset filters\n- Live preview")
 
     col4, col5 = st.columns(2)
     with col4:
-        st.markdown("""
-        **🖼️ Background Adder**
-        - Add solid color backgrounds
-        - Add image backgrounds
-        - Batch processing support
-        """)
+        st.markdown("**🖼️ Background Adder**\n- Solid color or image bg\n- Batch processing\n- ZIP download")
     with col5:
-        st.markdown("""
-        **💬 Quote Generator**
-        - Overlay text on images
-        - Custom fonts and colors
-        - Batch quote overlay
-        """)
+        st.markdown("**💬 Quote Generator**\n- Text overlay on images\n- Custom fonts, colors\n- Batch quotes from ZIP")
 
 
 def show_bg_remover():
     st.header("✂️ Background Remover")
-    st.markdown("Remove backgrounds from images. Supports PNG, JPG, JPEG, WebP, BMP.")
+    st.markdown("Remove backgrounds from images. Upload single files, multiple files, or a ZIP archive.")
 
-    mode = st.radio("Mode", ["📤 Upload Files", "📁 Bulk Folder"], horizontal=True)
+    mode = st.radio("Mode", ["📤 Upload Files", "📦 Upload ZIP"], horizontal=True)
 
     if mode == "📤 Upload Files":
         uploaded_files = st.file_uploader(
             "Upload image(s)",
             type=["png", "jpg", "jpeg", "webp", "bmp"],
             accept_multiple_files=True,
-            help="Select one or more images to process",
         )
 
         if uploaded_files:
             st.info(f"📎 {len(uploaded_files)} file(s) selected")
-            cols = st.columns(min(len(uploaded_files), 4))
-            for i, uf in enumerate(uploaded_files[:8]):
-                with cols[i % 4]:
-                    img = Image.open(uf)
-                    st.image(img, caption=uf.name, use_container_width=True)
-            if len(uploaded_files) > 8:
-                st.caption(f"...and {len(uploaded_files) - 8} more files")
 
             if st.button("🚀 Remove Background", type="primary"):
                 progress = st.progress(0)
                 status = st.empty()
                 results = []
-                output_images = []
 
                 for i, uf in enumerate(uploaded_files):
                     status.text(f"Processing: {uf.name} ({i+1}/{len(uploaded_files)})")
-                    img_bytes = uf.getvalue()
                     try:
-                        output_bytes = bg_remover.remove_bg(img_bytes)
-                        output_images.append((uf.name, output_bytes))
-                        results.append((uf.name, True, None))
+                        out_name = os.path.splitext(uf.name)[0] + ".png"
+                        output_bytes = bg_remover.remove_bg(uf.getvalue())
+                        results.append((out_name, output_bytes))
                     except Exception as e:
-                        results.append((uf.name, False, str(e)))
+                        st.error(f"❌ {uf.name}: {e}")
                     progress.progress((i + 1) / len(uploaded_files))
 
-                success_count = sum(1 for _, s, _ in results if s)
-                st.success(f"✅ Processed {success_count}/{len(uploaded_files)} files")
-
-                if output_images:
-                    for name, img_bytes in output_images:
-                        st.image(img_bytes, caption=f"✅ {name}", use_container_width=True)
-                        st.download_button(
-                            f"📥 Download {name}",
-                            img_bytes,
-                            file_name=os.path.splitext(name)[0] + ".png",
-                            mime="image/png",
-                            key=f"dl_{name}",
-                        )
-
-                    if len(output_images) > 1:
-                        zip_buf = io.BytesIO()
-                        import zipfile
-                        with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                            for name, img_bytes in output_images:
-                                zf.writestr(os.path.splitext(name)[0] + ".png", img_bytes)
-                        zip_buf.seek(0)
-                        st.download_button(
-                            "📦 Download All as ZIP",
-                            zip_buf.getvalue(),
-                            "backgrounds_removed.zip",
-                            "application/zip",
-                        )
-
-                errors = [(n, e) for n, s, e in results if not s]
-                for name, err in errors:
-                    st.error(f"❌ {name}: {err}")
+                if results:
+                    st.success(f"✅ Processed {len(results)}/{len(uploaded_files)} files")
+                    show_results(results, suffix=".png", mime="image/png")
 
     else:
-        st.subheader("Bulk Folder Processing")
-        input_folder = st.text_input("Input Folder Path", placeholder="C:/images/input")
-        output_folder = st.text_input("Output Folder Path", placeholder="C:/images/output")
+        zip_file = st.file_uploader("Upload ZIP file of images", type=["zip"])
+        if zip_file:
+            st.info(f"📦 {zip_file.name} uploaded")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📂 Browse Input Folder"):
-                try:
-                    import tkinter as tk
-                    from tkinter import filedialog
-                    root = tk.Tk()
-                    root.withdraw()
-                    root.attributes("-topmost", True)
-                    path = filedialog.askdirectory(title="Select Input Folder")
-                    root.destroy()
-                    if path:
-                        st.session_state["bg_input"] = path
-                        st.rerun()
-                except Exception:
-                    st.warning("File browser unavailable. Enter path manually.")
-        with col2:
-            if st.button("📂 Browse Output Folder"):
-                try:
-                    import tkinter as tk
-                    from tkinter import filedialog
-                    root = tk.Tk()
-                    root.withdraw()
-                    root.attributes("-topmost", True)
-                    path = filedialog.askdirectory(title="Select Output Folder")
-                    root.destroy()
-                    if path:
-                        st.session_state["bg_output"] = path
-                        st.rerun()
-                except Exception:
-                    st.warning("File browser unavailable. Enter path manually.")
+            tdir = extract_zip_to_temp(zip_file)
+            files = get_files_from_dir(tdir, SUPPORTED_IMG)
+            st.info(f"🖼️ Found {len(files)} images in ZIP")
 
-        if "bg_input" in st.session_state:
-            input_folder = st.session_state["bg_input"]
-        if "bg_output" in st.session_state:
-            output_folder = st.session_state["bg_output"]
+            if files:
+                cols = st.columns(min(len(files), 4))
+                for i, fp in enumerate(files[:8]):
+                    with cols[i % 4]:
+                        st.image(fp, caption=os.path.basename(fp), use_container_width=True)
+                if len(files) > 8:
+                    st.caption(f"...and {len(files) - 8} more")
 
-        if input_folder and os.path.isdir(input_folder):
-            files = get_image_files(input_folder)
-            st.info(f"Found {len(files)} images in input folder")
-        else:
-            files = []
+            if st.button("🚀 Remove Background", type="primary") and files:
+                progress = st.progress(0)
+                status = st.empty()
+                results = []
 
-        if st.button("🚀 Process All", type="primary") and input_folder and output_folder and files:
-            os.makedirs(output_folder, exist_ok=True)
-            progress = st.progress(0)
-            status = st.empty()
+                for i, fpath in enumerate(files):
+                    fname = os.path.basename(fpath)
+                    status.text(f"Processing: {fname} ({i+1}/{len(files)})")
+                    try:
+                        with open(fpath, "rb") as f:
+                            input_data = f.read()
+                        output_data = bg_remover.remove_bg(input_data)
+                        out_name = os.path.splitext(fname)[0] + ".png"
+                        results.append((out_name, output_data))
+                    except Exception as e:
+                        st.error(f"❌ {fname}: {e}")
+                    progress.progress((i + 1) / len(files))
 
-            def update_progress(pct, msg):
-                progress.progress(pct)
-                status.text(msg)
+                if results:
+                    st.success(f"✅ Processed {len(results)}/{len(files)} files")
+                    show_results(results, suffix=".png", mime="image/png")
 
-            results = bg_remover.process_batch(files, output_folder, progress_callback=update_progress)
-            success_count = sum(1 for _, s, _ in results if s)
-            st.success(f"✅ Processed {success_count}/{len(results)} files to `{output_folder}`")
-
-            if os.path.isdir(output_folder):
-                zip_data = create_zip_from_dir(output_folder)
-                st.download_button("📦 Download All as ZIP", zip_data, "results.zip", "application/zip")
+                shutil.rmtree(tdir, ignore_errors=True)
 
 
 def show_video_converter():
     st.header("🎬 Video to Image Converter")
-    mode = st.radio("Mode", ["📤 Upload Video", "📁 Bulk Folder"], horizontal=True)
+    mode = st.radio("Mode", ["📤 Upload Video", "📦 Upload ZIP"], horizontal=True)
 
     if mode == "📤 Upload Video":
         video_file = st.file_uploader("Upload video", type=["mp4", "avi", "mov", "mkv", "webm"])
-
         if video_file:
             tdir = tempfile.mkdtemp()
             temp_path = os.path.join(tdir, video_file.name)
             with open(temp_path, "wb") as f:
                 f.write(video_file.read())
 
-            save_every = st.number_input("Save every Nth frame", min_value=1, value=1,
-                                         help="1 = all frames, 30 = every 30th frame")
+            save_every = st.number_input("Save every Nth frame", min_value=1, value=1)
             output_dir = st.text_input("Output folder name", value="extracted_frames")
 
             if st.button("🎬 Start Extraction", type="primary"):
@@ -289,53 +237,47 @@ def show_video_converter():
                         st.download_button("📦 Download Frames ZIP", zip_data, "frames.zip", "application/zip")
                 else:
                     st.error(msg)
-
                 shutil.rmtree(tdir, ignore_errors=True)
 
     else:
-        st.subheader("Bulk Video Processing")
-        input_folder = st.text_input("Input Videos Folder", placeholder="C:/videos/input")
-        output_parent = st.text_input("Base Output Folder", placeholder="C:/videos/output")
+        zip_file = st.file_uploader("Upload ZIP file of videos", type=["zip"])
+        if zip_file:
+            save_every = st.number_input("Save every Nth frame", min_value=1, value=1)
 
-        save_every = st.number_input("Save every Nth frame", min_value=1, value=1)
+            if st.button("🎬 Extract Frames", type="primary"):
+                tdir = extract_zip_to_temp(zip_file)
+                videos = get_files_from_dir(tdir, SUPPORTED_VID)
+                st.info(f"🎬 Found {len(videos)} videos")
 
-        if st.button("📂 Browse Videos Folder"):
-            try:
-                import tkinter as tk
-                from tkinter import filedialog
-                root = tk.Tk()
-                root.withdraw()
-                root.attributes("-topmost", True)
-                path = filedialog.askdirectory(title="Select Videos Folder")
-                root.destroy()
-                if path:
-                    st.session_state["vid_input"] = path
-                    st.rerun()
-            except Exception:
-                pass
+                if videos:
+                    progress = st.progress(0)
+                    status = st.empty()
+                    all_frames = []
 
-        if "vid_input" in st.session_state:
-            input_folder = st.session_state["vid_input"]
+                    for i, vpath in enumerate(videos):
+                        vname = os.path.splitext(os.path.basename(vpath))[0]
+                        status.text(f"Extracting: {os.path.basename(vpath)} ({i+1}/{len(videos)})")
+                        tmp_out = os.path.join(tdir, "frames_" + vname)
+                        video_converter.extract_frames(vpath, tmp_out, save_every)
+                        if os.path.isdir(tmp_out):
+                            for fn in os.listdir(tmp_out):
+                                fp = os.path.join(tmp_out, fn)
+                                if os.path.isfile(fp):
+                                    with open(fp, "rb") as f:
+                                        all_frames.append((f"{vname}_{fn}", f.read()))
+                        progress.progress((i + 1) / len(videos))
 
-        if input_folder and os.path.isdir(input_folder):
-            videos = get_video_files(input_folder)
-            st.info(f"Found {len(videos)} video(s)")
+                    if all_frames:
+                        st.success(f"✅ Extracted {len(all_frames)} frames from {len(videos)} videos")
+                        zip_data = make_zip_from_results(all_frames)
+                        st.download_button("📦 Download All Frames ZIP", zip_data, "all_frames.zip", "application/zip")
 
-            if st.button("🚀 Process All Videos", type="primary") and output_parent:
-                progress = st.progress(0)
-                status = st.empty()
-                for i, vpath in enumerate(videos):
-                    vname = os.path.splitext(os.path.basename(vpath))[0]
-                    out_path = os.path.join(output_parent, vname)
-                    status.text(f"Processing: {os.path.basename(vpath)} ({i+1}/{len(videos)})")
-                    video_converter.extract_frames(vpath, out_path, save_every)
-                    progress.progress((i + 1) / len(videos))
-                st.success(f"✅ Extracted frames from {len(videos)} videos")
+                shutil.rmtree(tdir, ignore_errors=True)
 
 
 def show_bg_adder():
     st.header("🖼️ Background Adder")
-    mode = st.radio("Mode", ["📤 Upload Files", "📁 Bulk Folder"], horizontal=True)
+    mode = st.radio("Mode", ["📤 Upload Files", "📦 Upload ZIP"], horizontal=True)
 
     bg_type = st.radio("Background Type", ["Solid Color", "Image"], horizontal=True)
     color = None
@@ -352,9 +294,25 @@ def show_bg_adder():
             st.image(bg_image, caption="Background preview", width=300)
             fit_mode = st.selectbox("Scaling mode", ["fill", "fit"])
 
+    def process_foreground(uf):
+        """Process a single foreground file, return (name, bytes, success, error)."""
+        try:
+            fg = Image.open(uf)
+            if bg_type == "Solid Color":
+                result = bg_adder.add_background_color(fg, color)
+            else:
+                if bg_image is None:
+                    return uf.name, None, False, "No background image"
+                result = bg_adder.add_background_image(fg, bg_image, fit_mode)
+            buf = io.BytesIO()
+            result.save(buf, format="PNG")
+            return os.path.splitext(uf.name if hasattr(uf, 'name') else os.path.basename(uf))[0] + "_bg.png", buf.getvalue(), True, None
+        except Exception as e:
+            return uf.name if hasattr(uf, 'name') else "unknown", None, False, str(e)
+
     if mode == "📤 Upload Files":
         uploaded = st.file_uploader(
-            "Upload foreground image(s) (transparent PNG recommended)",
+            "Upload foreground image(s)",
             type=["png", "jpg", "jpeg", "webp"],
             accept_multiple_files=True,
         )
@@ -369,80 +327,55 @@ def show_bg_adder():
 
                 for i, uf in enumerate(uploaded):
                     status.text(f"Processing: {uf.name} ({i+1}/{len(uploaded)})")
-                    try:
-                        fg = Image.open(uf)
-                        if bg_type == "Solid Color":
-                            result = bg_adder.add_background_color(fg, color)
-                        else:
-                            if bg_image is None:
-                                st.error("Upload a background image first")
-                                return
-                            result = bg_adder.add_background_image(fg, bg_image, fit_mode)
-
-                        buf = io.BytesIO()
-                        result.save(buf, format="PNG")
-                        results.append((uf.name, buf.getvalue(), True, None))
-                    except Exception as e:
-                        results.append((uf.name, None, False, str(e)))
-                    progress.progress((i + 1) / len(uploaded))
-
-                success_count = sum(1 for _, _, s, _ in results if s)
-                st.success(f"✅ Processed {success_count}/{len(uploaded)} files")
-
-                for name, img_data, success, err in results:
+                    name, data, success, err = process_foreground(uf)
                     if success:
-                        st.image(img_data, caption=f"✅ {name}", use_container_width=True)
-                        st.download_button(
-                            f"📥 Download {name}",
-                            img_data,
-                            os.path.splitext(name)[0] + "_bg.png",
-                            "image/png",
-                            key=f"bga_{name}",
-                        )
+                        results.append((name, data))
                     else:
                         st.error(f"❌ {name}: {err}")
+                    progress.progress((i + 1) / len(uploaded))
 
-                if len(results) > 1:
-                    import zipfile
-                    zip_buf = io.BytesIO()
-                    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                        for name, img_data, s, _ in results:
-                            if s:
-                                zf.writestr(os.path.splitext(name)[0] + "_bg.png", img_data)
-                    zip_buf.seek(0)
-                    st.download_button("📦 Download All as ZIP", zip_buf.getvalue(), "backgrounds_added.zip", "application/zip")
+                if results:
+                    st.success(f"✅ Processed {len(results)}/{len(uploaded)} files")
+                    show_results(results, suffix=".png", mime="image/png")
 
     else:
-        st.subheader("Bulk Folder Processing")
-        input_folder = st.text_input("Input Folder Path", placeholder="C:/images/foreground")
-        output_folder = st.text_input("Output Folder Path", placeholder="C:/images/output")
+        zip_file = st.file_uploader("Upload ZIP file of foreground images", type=["zip"])
+        if zip_file:
+            tdir = extract_zip_to_temp(zip_file)
+            files = get_files_from_dir(tdir, SUPPORTED_IMG)
+            st.info(f"🖼️ Found {len(files)} images in ZIP")
 
-        if st.button("🚀 Process All", type="primary") and input_folder and output_folder:
-            files = get_image_files(input_folder)
-            os.makedirs(output_folder, exist_ok=True)
-            progress = st.progress(0)
-            status = st.empty()
+            if files:
+                cols = st.columns(min(len(files), 4))
+                for i, fp in enumerate(files[:8]):
+                    with cols[i % 4]:
+                        st.image(fp, caption=os.path.basename(fp), use_container_width=True)
 
-            for i, fpath in enumerate(files):
-                fname = os.path.splitext(os.path.basename(fpath))[0] + "_bg.png"
-                out_path = os.path.join(output_folder, fname)
-                status.text(f"Processing: {os.path.basename(fpath)} ({i+1}/{len(files)})")
-                try:
-                    fg = Image.open(fpath)
-                    if bg_type == "Solid Color":
-                        bg_adder.process_single_color(fpath, out_path, color)
+            if st.button("🚀 Add Background", type="primary") and files:
+                progress = st.progress(0)
+                status = st.empty()
+                results = []
+
+                for i, fpath in enumerate(files):
+                    fname = os.path.basename(fpath)
+                    status.text(f"Processing: {fname} ({i+1}/{len(files)})")
+                    name, data, success, err = process_foreground(type("UF", (), {"name": fname, "read": lambda: open(fpath, "rb").read()})())
+                    if success:
+                        results.append((name, data))
                     else:
-                        bg_adder.process_single_image(fpath, out_path, bg_image, fit_mode)
-                except Exception as e:
-                    st.error(f"Error: {fpath}: {e}")
-                progress.progress((i + 1) / len(files))
+                        st.error(f"❌ {fname}: {err}")
+                    progress.progress((i + 1) / len(files))
 
-            st.success(f"✅ Done! Processed {len(files)} files")
+                if results:
+                    st.success(f"✅ Processed {len(results)}/{len(files)} files")
+                    show_results(results, suffix=".png", mime="image/png")
+
+                shutil.rmtree(tdir, ignore_errors=True)
 
 
 def show_color_grader():
     st.header("🌈 Color Grader")
-    mode = st.radio("Mode", ["📤 Upload Files", "📁 Bulk Folder"], horizontal=True)
+    mode = st.radio("Mode", ["📤 Upload Files", "📦 Upload ZIP"], horizontal=True)
 
     col1, col2 = st.columns([1, 2])
 
@@ -455,6 +388,29 @@ def show_color_grader():
         filt = st.selectbox("Preset Filter", ["None", "B&W", "Sepia", "Warm", "Cool", "Cyberpunk"])
         output_fmt = st.selectbox("Output Format", ["JPEG", "PNG"])
 
+    ext = ".jpg" if output_fmt == "JPEG" else ".png"
+    mime = "image/jpeg" if output_fmt == "JPEG" else "image/png"
+
+    def process_image_file(source, name):
+        """Process an image file through color grader."""
+        try:
+            if hasattr(source, "read"):
+                img = Image.open(source)
+            else:
+                img = Image.open(source)
+            result = color_grader.apply_adjustments(img, brightness, contrast, saturation, sharpness)
+            if filt != "None":
+                result = color_grader.apply_filter(result, filt)
+            buf = io.BytesIO()
+            if output_fmt == "JPEG":
+                result.save(buf, format="JPEG", quality=95)
+            else:
+                result.save(buf, format="PNG")
+            out_name = os.path.splitext(name)[0] + "_graded" + ext
+            return out_name, buf.getvalue(), True, None
+        except Exception as e:
+            return name, None, False, str(e)
+
     if mode == "📤 Upload Files":
         uploaded = st.file_uploader(
             "Upload image(s)",
@@ -465,12 +421,11 @@ def show_color_grader():
         if uploaded:
             with col2:
                 st.subheader("Live Preview")
-                preview_file = uploaded[0]
-                img = Image.open(preview_file)
+                img = Image.open(uploaded[0])
                 processed = color_grader.apply_adjustments(img, brightness, contrast, saturation, sharpness)
                 if filt != "None":
                     processed = color_grader.apply_filter(processed, filt)
-                st.image(processed, caption="Preview (first image)", use_container_width=True)
+                st.image(processed, caption="Preview", use_container_width=True)
 
             if st.button("🚀 Apply to All", type="primary"):
                 progress = st.progress(0)
@@ -479,75 +434,53 @@ def show_color_grader():
 
                 for i, uf in enumerate(uploaded):
                     status.text(f"Processing: {uf.name} ({i+1}/{len(uploaded)})")
-                    try:
-                        img = Image.open(uf)
-                        result = color_grader.apply_adjustments(img, brightness, contrast, saturation, sharpness)
-                        if filt != "None":
-                            result = color_grader.apply_filter(result, filt)
-                        ext = ".jpg" if output_fmt == "JPEG" else ".png"
-                        buf = io.BytesIO()
-                        if output_fmt == "JPEG":
-                            result.save(buf, format="JPEG", quality=95)
-                        else:
-                            result.save(buf, format="PNG")
-                        results.append((uf.name, buf.getvalue(), True, None))
-                    except Exception as e:
-                        results.append((uf.name, None, False, str(e)))
+                    name, data, success, err = process_image_file(uf, uf.name)
+                    if success:
+                        results.append((name, data))
+                    else:
+                        st.error(f"❌ {name}: {err}")
                     progress.progress((i + 1) / len(uploaded))
 
-                success_count = sum(1 for _, _, s, _ in results if s)
-                st.success(f"✅ Processed {success_count}/{len(uploaded)} files")
-
-                for name, img_data, success, err in results:
-                    if success:
-                        mime = "image/jpeg" if output_fmt == "JPEG" else "image/png"
-                        ext = ".jpg" if output_fmt == "JPEG" else ".png"
-                        st.download_button(
-                            f"📥 {name}",
-                            img_data,
-                            os.path.splitext(name)[0] + "_graded" + ext,
-                            mime,
-                            key=f"cg_{name}",
-                        )
-
-                if len(results) > 1:
-                    import zipfile
-                    zip_buf = io.BytesIO()
-                    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                        ext = ".jpg" if output_fmt == "JPEG" else ".png"
-                        for name, img_data, s, _ in results:
-                            if s:
-                                zf.writestr(os.path.splitext(name)[0] + "_graded" + ext, img_data)
-                    zip_buf.seek(0)
-                    st.download_button("📦 Download All as ZIP", zip_buf.getvalue(), "graded_images.zip", "application/zip")
+                if results:
+                    st.success(f"✅ Processed {len(results)}/{len(uploaded)} files")
+                    show_results(results, suffix=ext, mime=mime)
 
     else:
         with col2:
-            st.subheader("Output Preview")
-            st.info("Adjust settings on the left, then process the folder.")
+            st.subheader("Preview")
+            st.info("Adjust settings on the left, then upload a ZIP to process.")
 
-        input_folder = st.text_input("Input Folder Path", placeholder="C:/images/input")
-        output_folder = st.text_input("Output Folder Path", placeholder="C:/images/output")
+        zip_file = st.file_uploader("Upload ZIP file of images", type=["zip"])
+        if zip_file:
+            tdir = extract_zip_to_temp(zip_file)
+            files = get_files_from_dir(tdir, SUPPORTED_IMG)
+            st.info(f"🖼️ Found {len(files)} images in ZIP")
 
-        if st.button("🚀 Process Folder", type="primary") and input_folder and output_folder:
-            files = get_image_files(input_folder)
-            os.makedirs(output_folder, exist_ok=True)
-            progress = st.progress(0)
-            status = st.empty()
+            if st.button("🚀 Process ZIP", type="primary") and files:
+                progress = st.progress(0)
+                status = st.empty()
+                results = []
 
-            results = color_grader.process_batch(
-                files, output_folder, brightness, contrast, saturation, sharpness,
-                filt, output_fmt,
-                progress_callback=lambda p, m: (progress.progress(p), status.text(m)),
-            )
+                for i, fpath in enumerate(files):
+                    fname = os.path.basename(fpath)
+                    status.text(f"Processing: {fname} ({i+1}/{len(files)})")
+                    name, data, success, err = process_image_file(fpath, fname)
+                    if success:
+                        results.append((name, data))
+                    else:
+                        st.error(f"❌ {fname}: {err}")
+                    progress.progress((i + 1) / len(files))
 
-            success_count = sum(1 for _, s, _ in results if s)
-            st.success(f"✅ Processed {success_count}/{len(results)} files to `{output_folder}`")
+                if results:
+                    st.success(f"✅ Processed {len(results)}/{len(files)} files")
+                    show_results(results, suffix=ext, mime=mime)
+
+                shutil.rmtree(tdir, ignore_errors=True)
 
 
 def show_quote_generator():
     st.header("💬 Quote Generator")
-    mode = st.radio("Mode", ["📤 Upload Files", "📁 Bulk Folder"], horizontal=True)
+    mode = st.radio("Mode", ["📤 Upload Files", "📦 Upload ZIP"], horizontal=True)
 
     col1, col2 = st.columns([1, 2])
 
@@ -560,6 +493,23 @@ def show_quote_generator():
         bg_rgb = tuple(int(bg_color_hex.lstrip("#")[i:i+2], 16) for i in (0, 2, 4))
         box_alpha = st.slider("Box Opacity", 0, 255, 128)
         position = st.selectbox("Text Position", ["center", "top", "bottom"])
+
+    def process_quote(source, name):
+        """Process a single image with quote overlay."""
+        try:
+            if hasattr(source, "read"):
+                img = Image.open(source)
+            else:
+                img = Image.open(source)
+            result = quote_gen.add_quote(img, quote, font_size=font_size,
+                                         color=rgb_color, box_alpha=box_alpha,
+                                         position=position, bg_color=bg_rgb)
+            buf = io.BytesIO()
+            result.save(buf, format="JPEG", quality=95)
+            out_name = os.path.splitext(name)[0] + "_quote.jpg"
+            return out_name, buf.getvalue(), True, None
+        except Exception as e:
+            return name, None, False, str(e)
 
     if mode == "📤 Upload Files":
         uploaded = st.file_uploader(
@@ -584,76 +534,48 @@ def show_quote_generator():
 
                 for i, uf in enumerate(uploaded):
                     status.text(f"Processing: {uf.name} ({i+1}/{len(uploaded)})")
-                    try:
-                        img = Image.open(uf)
-                        result = quote_gen.add_quote(img, quote, font_size=font_size,
-                                                     color=rgb_color, box_alpha=box_alpha,
-                                                     position=position, bg_color=bg_rgb)
-                        buf = io.BytesIO()
-                        result.save(buf, format="JPEG", quality=95)
-                        results.append((uf.name, buf.getvalue(), True, None))
-                    except Exception as e:
-                        results.append((uf.name, None, False, str(e)))
+                    name, data, success, err = process_quote(uf, uf.name)
+                    if success:
+                        results.append((name, data))
+                    else:
+                        st.error(f"❌ {name}: {err}")
                     progress.progress((i + 1) / len(uploaded))
 
-                success_count = sum(1 for _, _, s, _ in results if s)
-                st.success(f"✅ Generated {success_count}/{len(uploaded)} quote images")
-
-                for name, img_data, success, err in results:
-                    if success:
-                        st.image(img_data, caption=f"✅ {name}", use_container_width=True)
-                        st.download_button(
-                            f"📥 Download {name}",
-                            img_data,
-                            os.path.splitext(name)[0] + "_quote.jpg",
-                            "image/jpeg",
-                            key=f"qg_{name}",
-                        )
-
-                if len(results) > 1:
-                    import zipfile
-                    zip_buf = io.BytesIO()
-                    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                        for name, img_data, s, _ in results:
-                            if s:
-                                zf.writestr(os.path.splitext(name)[0] + "_quote.jpg", img_data)
-                    zip_buf.seek(0)
-                    st.download_button("📦 Download All as ZIP", zip_buf.getvalue(), "quote_images.zip", "application/zip")
+                if results:
+                    st.success(f"✅ Generated {len(results)}/{len(uploaded)} quote images")
+                    show_results(results, suffix=".jpg", mime="image/jpeg")
 
     else:
         with col2:
             st.subheader("Preview")
-            st.info("Configure quote settings on the left, then process the folder.")
+            st.info("Configure settings on the left, then upload a ZIP.")
 
-        st.markdown("---")
-        st.subheader("Bulk Folder with Quotes File")
-        st.caption("Upload a text file with one quote per line. Quotes are cycled through images.")
+        zip_file = st.file_uploader("Upload ZIP file of images", type=["zip"])
+        if zip_file:
+            tdir = extract_zip_to_temp(zip_file)
+            files = get_files_from_dir(tdir, SUPPORTED_IMG)
+            st.info(f"🖼️ Found {len(files)} images in ZIP")
 
-        input_folder = st.text_input("Image Folder Path", placeholder="C:/images/input")
-        output_folder = st.text_input("Output Folder Path", placeholder="C:/images/output")
-        quotes_file = st.file_uploader("Quotes text file (one per line)", type=["txt"])
+            if st.button("🚀 Generate Quotes", type="primary") and files:
+                progress = st.progress(0)
+                status = st.empty()
+                results = []
 
-        quotes_list = []
-        if quotes_file:
-            quotes_list = quotes_file.read().decode("utf-8").strip().split("\n")
-            quotes_list = [q.strip() for q in quotes_list if q.strip()]
-            st.info(f"📝 Loaded {len(quotes_list)} quotes")
+                for i, fpath in enumerate(files):
+                    fname = os.path.basename(fpath)
+                    status.text(f"Processing: {fname} ({i+1}/{len(files)})")
+                    name, data, success, err = process_quote(fpath, fname)
+                    if success:
+                        results.append((name, data))
+                    else:
+                        st.error(f"❌ {fname}: {err}")
+                    progress.progress((i + 1) / len(files))
 
-        if st.button("🚀 Process Folder", type="primary") and input_folder and output_folder and quotes_list:
-            files = get_image_files(input_folder)
-            os.makedirs(output_folder, exist_ok=True)
-            progress = st.progress(0)
-            status = st.empty()
+                if results:
+                    st.success(f"✅ Generated {len(results)}/{len(files)} quote images")
+                    show_results(results, suffix=".jpg", mime="image/jpeg")
 
-            results = quote_gen.process_batch(
-                files, output_folder, quotes_list,
-                font_size=font_size, color=rgb_color, box_alpha=box_alpha,
-                position=position, bg_color=bg_rgb,
-                progress_callback=lambda p, m: (progress.progress(p), status.text(m)),
-            )
-
-            success_count = sum(1 for _, s, _ in results if s)
-            st.success(f"✅ Generated {success_count}/{len(results)} quote images")
+                shutil.rmtree(tdir, ignore_errors=True)
 
 
 if __name__ == "__main__":
