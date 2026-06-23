@@ -37,23 +37,28 @@ st.markdown("""
         background: linear-gradient(180deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
     }
     div[data-testid="stSidebar"] .stRadio label {
-        color: #e0e0e0; font-size: 0.95rem; padding: 4px 0;
+        color: #e0e0e0 !important; font-size: 0.95rem; padding: 4px 0;
     }
-    div[data-testid="stSidebar"] h1 { color: #ffffff; font-size: 1.4rem; }
-    div[data-testid="stSidebar"] .stCaption { color: #aaa; }
+    div[data-testid="stSidebar"] h1 { color: #ffffff !important; font-size: 1.4rem; }
+    div[data-testid="stSidebar"] .stCaption { color: #ccc !important; }
+    div[data-testid="stSidebar"] hr { border-color: #555 !important; }
+    div[data-testid="stSidebar"] p { color: #ccc !important; }
 
     /* ===== HEADERS ===== */
-    h1 { color: #1a1a2e; font-weight: 700; }
-    h2, h3 { color: #16213e; }
+    h1 { color: #1a1a2e !important; font-weight: 700; }
+    h2, h3 { color: #16213e !important; }
+
+    /* ===== BODY TEXT ===== */
+    .stMarkdown p, .stMarkdown li, .stMarkdown span { color: #2d3748 !important; }
 
     /* ===== MODE SELECTOR ===== */
     .stRadio > div[role="radiogroup"] {
-        gap: 0; background: #f8f9fa; border-radius: 10px; padding: 4px;
-        border: 1px solid #e0e0e0;
+        gap: 0; background: #f0f2f5; border-radius: 10px; padding: 4px;
+        border: 1px solid #d0d0d0;
     }
     .stRadio > div[role="radiogroup"] > label {
         background: transparent; border-radius: 8px; padding: 6px 16px;
-        font-weight: 500; transition: all 0.2s;
+        font-weight: 500; color: #2d3748 !important; transition: all 0.2s;
     }
     .stRadio > div[role="radiogroup"] > label:hover {
         background: #e8f4fd;
@@ -62,18 +67,18 @@ st.markdown("""
     /* ===== CARDS ===== */
     .info-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white; padding: 1.2rem; border-radius: 12px;
+        color: white !important; padding: 1.2rem; border-radius: 12px;
         margin-bottom: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
-    .info-card h4 { color: white; margin: 0 0 0.5rem 0; font-size: 1rem; }
-    .info-card p { margin: 0; opacity: 0.9; font-size: 0.9rem; }
+    .info-card h4 { color: white !important; margin: 0 0 0.5rem 0; font-size: 1rem; }
+    .info-card p, .info-card span { color: white !important; margin: 0; opacity: 0.95; font-size: 0.9rem; }
 
     .stat-card {
-        background: white; border: 1px solid #e8e8e8; border-radius: 10px;
+        background: #f8f9ff; border: 1px solid #e0e0f0; border-radius: 10px;
         padding: 1rem; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     }
     .stat-card .number { font-size: 2rem; font-weight: 700; color: #667eea; }
-    .stat-card .label { font-size: 0.85rem; color: #888; margin-top: 4px; }
+    .stat-card .label { font-size: 0.85rem; color: #555; margin-top: 4px; }
 
     /* ===== PROCESS BUTTON ===== */
     .stButton > button[kind="primary"] {
@@ -88,11 +93,20 @@ st.markdown("""
         box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6) !important;
     }
 
+    /* ===== SECONDARY BUTTONS ===== */
+    .stButton > button:not([kind="primary"]) {
+        background: #f8f9ff !important; color: #2d3748 !important;
+        border: 1px solid #d0d0e0 !important; border-radius: 8px !important;
+    }
+    .stButton > button:not([kind="primary"]):hover {
+        background: #e8e8f8 !important; border-color: #667eea !important;
+    }
+
     /* ===== DOWNLOAD BUTTON ===== */
     .stDownloadButton > button {
         border-radius: 8px !important; font-weight: 500 !important;
         border: 2px solid #667eea !important; color: #667eea !important;
-        transition: all 0.2s !important;
+        background: white !important; transition: all 0.2s !important;
     }
     .stDownloadButton > button:hover {
         background: #667eea !important; color: white !important;
@@ -107,6 +121,28 @@ st.markdown("""
         border-color: #764ba2; background: #f0f0ff;
     }
 
+    /* ===== TEXT INPUTS ===== */
+    .stTextInput > div > div > input {
+        background: white !important; color: #2d3748 !important;
+        border: 1px solid #d0d0d0 !important; border-radius: 8px !important;
+    }
+    .stTextInput > div > div > input:focus {
+        border-color: #667eea !important; box-shadow: 0 0 0 2px rgba(102,126,234,0.2) !important;
+    }
+    .stTextArea > div > div > textarea {
+        background: white !important; color: #2d3748 !important;
+        border: 1px solid #d0d0d0 !important; border-radius: 8px !important;
+    }
+    .stTextArea > div > div > textarea:focus {
+        border-color: #667eea !important;
+    }
+    .stNumberInput > div > div > input {
+        background: white !important; color: #2d3748 !important;
+    }
+    .stSelectbox > div > div > div {
+        background: white !important; color: #2d3748 !important;
+    }
+
     /* ===== PROGRESS BAR ===== */
     .stProgress > div > div {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
@@ -118,23 +154,43 @@ st.markdown("""
 
     /* ===== SUCCESS / ERROR ===== */
     .stAlert { border-radius: 10px; }
+    .stSuccess { background: #d4edda !important; color: #155724 !important; border: 1px solid #c3e6cb !important; }
+    .stError { background: #f8d7da !important; color: #721c24 !important; border: 1px solid #f5c6cb !important; }
+    .stWarning { background: #fff3cd !important; color: #856404 !important; border: 1px solid #ffeeba !important; }
+    .stInfo { background: #d1ecf1 !important; color: #0c5460 !important; border: 1px solid #bee5eb !important; }
 
     /* ===== TABS ===== */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px; background: #f8f9fa; border-radius: 10px; padding: 4px;
+        gap: 8px; background: #f0f2f5; border-radius: 10px; padding: 4px;
     }
     .stTabs [data-baseweb="tab"] {
         border-radius: 8px; font-weight: 500; padding: 8px 20px;
+        color: #2d3748 !important;
     }
     .stTabs [aria-selected="true"] {
         background: white !important; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        color: #667eea !important;
     }
 
     /* ===== SLIDER ===== */
     .stSlider > div > div > div { color: #667eea; }
 
+    /* ===== LABELS ===== */
+    .stMarkdown label, .stRadio label, .stCheckbox label {
+        color: #2d3748 !important; font-weight: 500;
+    }
+
+    /* ===== EXPANDER ===== */
+    .streamlit-expanderHeader {
+        background: #f8f9ff !important; color: #2d3748 !important;
+        border-radius: 8px !important; font-weight: 500;
+    }
+
     /* ===== DIVIDER ===== */
-    hr { border: none; border-top: 1px solid #e8e8e8; margin: 1rem 0; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 1rem 0; }
+
+    /* ===== CAPTION / SMALL TEXT ===== */
+    .stCaption, small, .stMarkdown small { color: #666 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -271,9 +327,9 @@ def show_stats(total, success, errors=0):
     with c1:
         st.markdown(f'<div class="stat-card"><div class="number">{total}</div><div class="label">Total Files</div></div>', unsafe_allow_html=True)
     with c2:
-        st.markdown(f'<div class="stat-card"><div class="number" style="color:#4CAF50">{success}</div><div class="label">Processed</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="stat-card"><div class="number" style="color:#48bb78">{success}</div><div class="label">Processed</div></div>', unsafe_allow_html=True)
     with c3:
-        color = "#f44336" if errors > 0 else "#888"
+        color = "#fc8181" if errors > 0 else "#888"
         st.markdown(f'<div class="stat-card"><div class="number" style="color:{color}">{errors}</div><div class="label">Errors</div></div>', unsafe_allow_html=True)
 
 
