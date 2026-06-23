@@ -9,7 +9,7 @@ import shutil
 
 APP_NAME = "VisionarySuite"
 ENTRY = "desktop_entry.py"
-DIRS_TO_INCLUDE = ["tools", "utils"]
+DIRS_TO_INCLUDE = ["visionary_suite"]
 
 # Clean previous builds
 for d in ["build", "dist"]:

@@ -11,6 +11,13 @@ from pathlib import Path
 
 from PIL import Image, ImageTk
 
+# Add visionary_suite to path so we can import tools/utils
+_suite_dir = resource_path("visionary_suite")
+if not os.path.isdir(_suite_dir):
+    _suite_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "visionary_suite")
+if _suite_dir not in sys.path:
+    sys.path.insert(0, _suite_dir)
+
 from tools.bg_remover import BackgroundRemover
 from tools.video_converter import VideoConverter
 from tools.bg_adder import BackgroundAdder
@@ -24,7 +31,7 @@ def resource_path(relative_path):
     try:
         base_path = sys._MEIPASS
     except AttributeError:
-        base_path = os.path.abspath(".")
+        base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, relative_path)
 
 

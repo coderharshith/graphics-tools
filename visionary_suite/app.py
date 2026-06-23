@@ -410,7 +410,7 @@ def show_bg_adder():
                             if s:
                                 zf.writestr(os.path.splitext(name)[0] + "_bg.png", img_data)
                     zip_buf.seek(0)
-                    st.download_button("📦 Download All as ZIP", zip_buf.getvalue(), " backgrounds_added.zip", "application/zip")
+                    st.download_button("📦 Download All as ZIP", zip_buf.getvalue(), "backgrounds_added.zip", "application/zip")
 
     else:
         st.subheader("Bulk Folder Processing")
