@@ -27,10 +27,7 @@ def render_home():
     """, unsafe_allow_html=True)
 
     q = st.text_input("Search tools...", key="home_search", placeholder="Search tools...")
-    if q:
-        tools = search_tools(q)
-    else:
-        tools = TOOLS
+    tools = search_tools(q) if q else TOOLS
 
     categories = ["all"] + list(TOOL_CATEGORIES.keys())
     labels = {"all": "All"}
@@ -40,10 +37,7 @@ def render_home():
     active = st.radio("Filter", categories, format_func=lambda x: labels.get(x, x),
                        horizontal=True, key="home_filter")
 
-    if active == "all":
-        filtered = tools
-    else:
-        filtered = [t for t in tools if t["category"] == active]
+    filtered = tools if active == "all" else [t for t in tools if t["category"] == active]
 
     if not filtered:
         st.info("No tools match your search.")
@@ -51,11 +45,10 @@ def render_home():
 
     if active == "all" and not q:
         st.markdown("### Popular Tools")
-        popular = filtered[:6]
         cols = st.columns(3)
-        for idx, tool in enumerate(popular):
+        for idx, tool in enumerate(filtered[:6]):
             with cols[idx % 3]:
-                render_tool_card(tool)
+                render_tool_card(tool, key_prefix="pop")
 
         st.markdown("### Explore by Category")
         cat_cols = st.columns(3)
@@ -69,13 +62,13 @@ def render_home():
 
         st.markdown("---")
         st.markdown("### All Tools")
-        cols = st.columns(3)
-        for idx, tool in enumerate(filtered):
-            with cols[idx % 3]:
-                render_tool_card(tool)
+
+    elif active == "all" and q:
+        st.markdown(f"### Search Results ({len(filtered)})")
     else:
         st.markdown(f"### {labels.get(active, active)} ({len(filtered)})")
-        cols = st.columns(3)
-        for idx, tool in enumerate(filtered):
-            with cols[idx % 3]:
-                render_tool_card(tool)
+
+    cols = st.columns(3)
+    for idx, tool in enumerate(filtered):
+        with cols[idx % 3]:
+            render_tool_card(tool, key_prefix="all")
