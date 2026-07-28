@@ -1,32 +1,53 @@
-import cv2
+import subprocess
 import os
 
+
 class VideoConverter:
-    def extract_frames(self, video_path, output_folder, save_every_nth=1, progress_callback=None):
-        """Extracts frames from a video file."""
-        os.makedirs(output_folder, exist_ok=True)
-        cap = cv2.VideoCapture(video_path)
-        
-        if not cap.isOpened():
-            return False, f"Cannot open video {video_path}"
 
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        frame_count = 0
-        saved_count = 0
+    FORMATS = {
+        "mp4": {"ext": ".mp4", "codec": ["-c:v", "libx264", "-c:a", "aac"]},
+        "avi": {"ext": ".avi", "codec": ["-c:v", "mpeg4", "-c:a", "mp3"]},
+        "mkv": {"ext": ".mkv", "codec": ["-c:v", "libx264", "-c:a", "aac"]},
+        "mov": {"ext": ".mov", "codec": ["-c:v", "libx264", "-c:a", "aac"]},
+        "webm": {"ext": ".webm", "codec": ["-c:v", "libvpx", "-c:a", "libvorbis"]},
+        "gif": {"ext": ".gif", "codec": []},
+    }
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+    def _run_ffmpeg(self, cmd):
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            return result.returncode == 0, result.stderr or "Success"
+        except FileNotFoundError:
+            return False, "ffmpeg not found. Install ffmpeg first."
+        except Exception as e:
+            return False, str(e)
 
-            if frame_count % save_every_nth == 0:
-                output_path = os.path.join(output_folder, f"frame_{saved_count:06d}.png")
-                cv2.imwrite(output_path, frame, [cv2.IMWRITE_PNG_COMPRESSION, 0])
-                saved_count += 1
+    def convert(self, input_path, output_path, target_format="mp4", quality=23):
+        info = self.FORMATS.get(target_format.lower())
+        if not info:
+            return False, f"Unsupported format: {target_format}"
+        cmd = ["ffmpeg", "-i", input_path] + info["codec"] + ["-crf", str(quality), "-y", output_path]
+        return self._run_ffmpeg(cmd)
 
-            frame_count += 1
-            if progress_callback and frame_count % 10 == 0:
-                progress_callback(frame_count / total_frames if total_frames > 0 else 0)
+    def extract_audio(self, input_path, output_path, fmt="mp3"):
+        cmd = ["ffmpeg", "-i", input_path, "-vn", "-acodec", "libmp3lame", "-y", output_path]
+        return self._run_ffmpeg(cmd)
 
-        cap.release()
-        return True, f"Saved {saved_count} frames."
+    def add_audio(self, video_path, audio_path, output_path):
+        cmd = ["ffmpeg", "-i", video_path, "-i", audio_path, "-c:v", "copy", "-map", "0:v:0", "-map", "1:a:0", "-y", output_path]
+        return self._run_ffmpeg(cmd)
+
+    def remove_audio(self, input_path, output_path):
+        cmd = ["ffmpeg", "-i", input_path, "-an", "-y", output_path]
+        return self._run_ffmpeg(cmd)
+
+    def get_info(self, input_path):
+        cmd = ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", input_path]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode == 0:
+                import json
+                return json.loads(result.stdout)
+        except Exception:
+            pass
+        return None
